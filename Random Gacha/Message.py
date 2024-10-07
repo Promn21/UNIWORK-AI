@@ -15,23 +15,26 @@ class Message:
         self.color = color  # store the color for rendering
 
     def update(self):
-        # Simulate gravity
+
+        #bounce and fade fx /// adapt from the older "ball project" for fun
+
+        # simulate easy gravity
         self.velocity[1] += 0.2  # Gravity effect
         self.position[0] += self.velocity[0]
         self.position[1] += self.velocity[1]
 
-        # Calculate elapsed time and fade out
+        # fade fx - elapsed time and fade out
         elapsed_time = pygame.time.get_ticks() - self.start_time
         if elapsed_time < self.fade_duration:
-            self.alpha = 255 * (1 - (elapsed_time / self.fade_duration))  # decrease alpha over time //// fade fx
+            self.alpha = 255 * (1 - (elapsed_time / self.fade_duration))  # decrease alpha over time
         else:
-            self.alpha = 0  # Fully transparent after duration
+            self.alpha = 0  # fully transparent after duration
 
-        # Bounce off the edges of the screen
+        # bouncy fx
         if self.position[0] <= 0 or self.position[0] + self.get_width() >= self.screen_width:
             self.velocity[0] = -self.velocity[0] * 0.5  # lose momentum
         if self.position[1] + self.get_height() >= self.screen_height:
-            self.velocity[1] = -self.velocity[1] * 0.5  # bounce and lose momentum  /// adapt from the older "ball project" for fun
+            self.velocity[1] = -self.velocity[1] * 0.5  # bounce and lose momentum  
 
     def get_width(self):
         return self.font.size(self.text)[0]
@@ -41,12 +44,10 @@ class Message:
     
     def draw(self, surface, offset=(0, 0)):
         """Draw the message on the surface with an optional offset for screen shake."""
-        text_surface = self.font.render(self.text, True, self.color)  # Render the text
-        text_surface.set_alpha(self.alpha)  # Set the alpha for fading
-        # Apply the offset to the message position (for screen shake)
-        position_with_offset = (self.position[0] + offset[0], self.position[1] + offset[1])
-        # Draw the text surface at the offset position
-        surface.blit(text_surface, position_with_offset)
+        text_surface = self.font.render(self.text, True, self.color)  # render texts
+        text_surface.set_alpha(self.alpha)  # set the alpha for fading
+        position_with_offset = (self.position[0] + offset[0], self.position[1] + offset[1]) # apply the offset to the message position (for it to work with screen shake)
+        surface.blit(text_surface, position_with_offset) # draw the text surface at the offset position
 
     def is_expired(self):
         return self.alpha <= 0  # check if the message is 0% opacity so maingame can remove it
