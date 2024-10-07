@@ -42,8 +42,7 @@ class Message:
     def get_height(self):
         return self.font.size(self.text)[1]
     
-    def draw(self, surface, offset=(0, 0)):
-        """Draw the message on the surface with an optional offset for screen shake."""
+    def draw(self, surface, offset=(0, 0)): # draw message 
         text_surface = self.font.render(self.text, True, self.color)  # render texts
         text_surface.set_alpha(self.alpha)  # set the alpha for fading
         position_with_offset = (self.position[0] + offset[0], self.position[1] + offset[1]) # apply the offset to the message position (for it to work with screen shake)
