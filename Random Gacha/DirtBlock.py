@@ -18,7 +18,7 @@ class Block:
 
     def spawn_new_block(self):
         """Spawn a new block with random brown gradient color and random size."""
-        self.block_color = [random.randint(139, 179), 69, 19]  # New brownish color
+        self.block_color = [179, 69, 19] 
         
         # Random block size (10% - 20% bigger or smaller)
         size_modifier = random.uniform(0.8, 1.2)
