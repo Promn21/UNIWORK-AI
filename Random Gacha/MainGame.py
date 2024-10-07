@@ -53,6 +53,7 @@ def dig_block(event):
         mineral = mineral_bag.draw()  # guaranteed mineral on fourth attempt
         mineral_color = MATERIAL_COLORS[mineral]
         messages.append(Message(f"Guaranteed find: {mineral}!", mouse_position, mineral_color, SCREEN_WIDTH, SCREEN_HEIGHT))
+
         return  
     
     if progressive_break_prob.attempt():  # check if the block breaks
