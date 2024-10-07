@@ -19,7 +19,7 @@ class Message:
         #bounce and fade fx /// adapt from the older "ball project" for fun
 
         # simulate easy gravity
-        self.velocity[1] += 0.2  # Gravity effect
+        self.velocity[1] += 0.2  # gravity effect
         self.position[0] += self.velocity[0]
         self.position[1] += self.velocity[1]
 
