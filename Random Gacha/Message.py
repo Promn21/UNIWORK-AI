@@ -7,12 +7,12 @@ class Message:
         self.position = list(position)
         self.velocity = [random.uniform(-2, 2), -5]
         self.font = pygame.font.Font(None, 36)
-        self.start_time = pygame.time.get_ticks()  # Time when message was created
-        self.fade_duration = fade_duration  # Duration for the fade effect
-        self.alpha = 255  # Start fully opaque
-        self.screen_width = screen_width  # Store screen width
-        self.screen_height = screen_height  # Store screen height
-        self.color = color  # Store the color for rendering
+        self.start_time = pygame.time.get_ticks()  # time when message was created
+        self.fade_duration = fade_duration  
+        self.alpha = 255  # start with 100% opacity
+        self.screen_width = screen_width  # store screen width
+        self.screen_height = screen_height  # store screen height
+        self.color = color  # store the color for rendering
 
     def update(self):
         # Simulate gravity
@@ -23,15 +23,15 @@ class Message:
         # Calculate elapsed time and fade out
         elapsed_time = pygame.time.get_ticks() - self.start_time
         if elapsed_time < self.fade_duration:
-            self.alpha = 255 * (1 - (elapsed_time / self.fade_duration))  # Decrease alpha over time
+            self.alpha = 255 * (1 - (elapsed_time / self.fade_duration))  # decrease alpha over time //// fade fx
         else:
             self.alpha = 0  # Fully transparent after duration
 
         # Bounce off the edges of the screen
         if self.position[0] <= 0 or self.position[0] + self.get_width() >= self.screen_width:
-            self.velocity[0] = -self.velocity[0] * 0.5  # Lose momentum
+            self.velocity[0] = -self.velocity[0] * 0.5  # lose momentum
         if self.position[1] + self.get_height() >= self.screen_height:
-            self.velocity[1] = -self.velocity[1] * 0.5  # Bounce and lose momentum
+            self.velocity[1] = -self.velocity[1] * 0.5  # bounce and lose momentum  /// adapt from the older "ball project" for fun
 
     def get_width(self):
         return self.font.size(self.text)[0]
@@ -49,4 +49,4 @@ class Message:
         surface.blit(text_surface, position_with_offset)
 
     def is_expired(self):
-        return self.alpha <= 0  # Check if the message is fully transparent
+        return self.alpha <= 0  # check if the message is 0% opacity so maingame can remove it
