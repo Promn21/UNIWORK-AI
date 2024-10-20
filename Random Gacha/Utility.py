@@ -3,17 +3,17 @@ import random
 class MarbleBagRandom:
     def __init__(self, elements, seed=None):
         assert len(elements) > 0, "elements list must not be empty."
-        self.bag = []  # Start with an empty bag
-        self.o_bag = elements  # Original bag
+        self.bag = []  # start with an empty bag
+        self.o_bag = elements  # original bag
         self.seed = seed
         if seed is not None:
             random.seed(seed)
 
     def draw(self):
         if not self.bag:
-            self.bag = self.o_bag.copy()  # Refill the bag from the original
-            random.shuffle(self.bag)  # Shuffle the bag randomly
-        return self.bag.pop()  # Draw an element
+            self.bag = self.o_bag.copy()  # refill the bag from the original
+            random.shuffle(self.bag)  # shuffle the bag randomly
+        return self.bag.pop()  # draw an element
 
 
 class Predetermination:
