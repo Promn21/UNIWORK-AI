@@ -21,7 +21,7 @@ progressive_break_prob = ProgressiveProb(break_prob, break_prob_increment)
 
 guaranteed_mineral_prob = FixedRateProb(0, 4) 
 
-# mineral colors (real-life materials color? idk lol)
+# mineral colors (according to real-life materials color? idk lol)
 MATERIAL_COLORS = {
     "Gold": (255, 215, 0),
     "Silver": (192, 192, 192),
@@ -99,7 +99,7 @@ while running:
 
     #### drawing the dirt block ####
     screen.fill((255, 255, 255))
-    pygame.draw.rect(screen, block.block_color, block.block.move(screen_offset))  # Apply screen shake offset
+    pygame.draw.rect(screen, block.block_color, block.block.move(screen_offset))  # apply screen shake offset
 
     #### draw all silly messages ####
     for message in messages:
