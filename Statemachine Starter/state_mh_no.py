@@ -1,143 +1,133 @@
-from abc import ABC, abstractmethod
 import pygame
 import random
-import math
 import enum
-import pygame_gui 
+import math
 
 WIDTH, HEIGHT = 800, 600
 NUM_AGENTS = 1
-FISH_SIZE = 5
 FOOD_SIZE = 3
 MAX_SPEED = 2
-
+HUNGER_DECAY_RATE = 5  # Hunger decreases by 5 every second
+CHASE_DISTANCE = 150  # Max distance to chase the food
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-manager = pygame_gui.UIManager((WIDTH, HEIGHT))
-food_rate_slider = pygame_gui.elements.UIHorizontalSlider(
-    relative_rect=pygame.Rect((10, 10), (200, 20)),
-    start_value=500,
-    value_range=(100, 2000),
-    manager=manager
-)
 pygame.display.set_caption("State Machine")
 
-# Load Orc Sprite Sheet
-orc_sprite_sheet = pygame.image.load('./assets/Orc.png').convert_alpha()
-orc_walk_animation = [orc_sprite_sheet.subsurface(pygame.Rect(x * 100, 100, 100, 100)) for x in range(6)]
-orc_attack_anim = [orc_sprite_sheet.subsurface(pygame.Rect(x * 100, 2 * 100, 100, 100)) for x in range(6)]
-orc_frames = orc_walk_animation
+# Load and slice sprite sheets
+def load_sprite_sheet(path, frame_count, frame_width, frame_height=64):
+    sheet = pygame.image.load(path).convert_alpha()
+    return [sheet.subsurface(pygame.Rect(i * frame_width, 0, frame_width, frame_height)) for i in range(frame_count)]
+
+# Define animations based on corrected frame dimensions
+raptor_walk_anim = load_sprite_sheet('assets/raptor-walk.png', 6, 128)
+raptor_run_anim = load_sprite_sheet('assets/raptor-run.png', 6, 128)
+raptor_idle_anim = load_sprite_sheet('assets/raptor-scanning.png', 18, 128)
+raptor_atk_anim = load_sprite_sheet('assets/raptor-bite.png', 10, 128)
+raptor_dead_anim = load_sprite_sheet('assets/raptor-dead.png', 6, 128)
 
 # Animation frame rate
-FRAME_RATE = 0.4
+FRAME_RATE = 30
 
-# States ------------
+# States
 class AgentState(enum.Enum):
-    PATRO_STATE = 0
+    PATROL_STATE = 0
     CHASE_STATE = 1
     ATK_STATE = 2
-# -------------------
-class StateMachine() :
-    def __init__(self) -> None:
-        self.states = {
-            'patrol': PatrolState(),
-            'chase' : ChaseState(),
-            'attack' : AttackState()
-        }
-        self.current_state = 'patrol'
-    
-    def update(self, agent, target):
-        new_state = self.states[self.current_state].update(agent, target)
-        if new_state:
-            self.transition_to(agent, new_state)
-
-    def transition_to(self, agent, new_state):
-        self.current_state.exit(agent)
-        self.current_state = new_state
-        self.current_state.enter(agent)
-
-class State(ABC):
-    @abstractmethod
-    def enter(self, agent):
-        pass
-    @abstractmethod
-    def update(self, agent):
-        pass
-    @abstractmethod
-    def exit(self, agent):
-        pass
-
-class PatrolState(State):
-    def enter(self, agent):
-        pass
-    
-    def update(self, agent, target):
-        agent.velocity.x = random.randint(0, 600)
-        agent.velocity.y = random.randint(0, 600)
-        if agent.velocity.length() > MAX_SPEED:
-            agent.velocity.scale_to_length(MAX_SPEED)
-        agent.position += self.velocity
-
-            # transition that could change to other stages
-        dist = (target - self.position).length()
-        if dist < 100:
-            return 'chase'
-
-    def exit(self, agent):
-        pass
-
-class ChaseState(State):
-    def enter(self, agent):
-        pass
-    
-    def update(self, agent, target):
-        a = (target - self.position).normalize() * 5
-        agent.velocity += a
-        # Limit speed
-        if agent.velocity.length() > MAX_SPEED:
-            agent.velocity.scale_to_length(MAX_SPEED)
-            # Update position
-        agent.position += self.velocity
-
-         # transition that could change to other stages
-        dist = (target - self.position).length()
-        if dist >= 100:
-            self.current_state = 'patrol'
-        if dist <= 10:
-            self.current_state = 'attack'
-
-    def exit(self, agent):
-        pass
-
-class AttackState(State):
-    def enter(self, agent):
-        pass
-    
-    def update(self, target, agent):
-        dist = (target - agent.position).length()
-        if dist > 10:
-            self.current_state = 'chase'
-
-    def exit(self, agent):
-        pass
-
-
+    IDLE_STATE = 3
+    DEAD_STATE = 4
 
 class Agent:
     def __init__(self):
+        self.hungriness = 100
         self.position = pygame.Vector2(random.uniform(0, WIDTH), random.uniform(0, HEIGHT))
-        self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1)).normalize() * MAX_SPEED
+        self.velocity = pygame.Vector2(0, 0)  # Initial velocity
         self.frame_index = 0
+        self.current_state = AgentState.PATROL_STATE
+        self.current_anim = raptor_walk_anim
+        self.time_since_last_frame = 0
+        self.anim_completed = False  # Tracks if an animation has finished
 
-        self.state_machine = StateMachine()
-        self.current_state = AgentState.PATRO_STATE
-        self.current_animation = orc_walk_animation
+        # Patrol attributes
+        self.patrol_timer = 0  # Time for patrol state
+        self.patrol_duration = random.uniform(0.5, 1)  # Duration to patrol for
+        self.set_random_patrol_direction()  # Set initial patrol direction
 
-    def update(self, target):
-        self.state_machine.update(self,target)
-        
-        a *= 0 #clear force
+    def set_random_patrol_direction(self):
+        angle = random.uniform(0, 360)  
+        radians = math.radians(angle)  
+        self.velocity = pygame.Vector2(MAX_SPEED * math.cos(radians), MAX_SPEED * math.sin(radians))
+
+    def update_animation(self, dt):
+        # Only update animation if not completed (for states like IDLE_STATE)
+        if not self.anim_completed:
+            self.frame_index += FRAME_RATE * dt
+            if self.frame_index >= len(self.current_anim):
+                self.frame_index = 0
+                if self.current_state == AgentState.IDLE_STATE:
+                    self.anim_completed = True  # Mark animation completed for idle state
+
+    def change_state(self, new_state, new_anim):
+        if self.current_state != new_state:
+            self.current_state = new_state
+            self.current_anim = new_anim
+            self.frame_index = 0
+            self.anim_completed = False  # Reset completion status for new state
+
+            # Reset patrol if transitioning from patrol to another state
+            if new_state != AgentState.PATROL_STATE:
+                self.patrol_timer = 0  # Reset the patrol timer
+
+    def update(self, target, dt):
+        if self.hungriness <= 0:
+            self.change_state(AgentState.DEAD_STATE, raptor_dead_anim)
+
+        if self.current_state != AgentState.DEAD_STATE:
+            self.hungriness -= HUNGER_DECAY_RATE * dt
+
+        if self.current_state == AgentState.PATROL_STATE:
+            # Update the patrol timer
+            self.patrol_timer += dt
+            if self.patrol_timer >= self.patrol_duration:
+                self.change_state(AgentState.IDLE_STATE, raptor_idle_anim)
+            else:
+                # Move in the current random direction
+                self.position += self.velocity
+            
+            # Check for nearby target to switch to CHASE_STATE
+            if (target - self.position).length() < 100:
+                self.change_state(AgentState.CHASE_STATE, raptor_run_anim)
+
+        elif self.current_state == AgentState.IDLE_STATE:
+            if self.anim_completed:
+                self.change_state(AgentState.PATROL_STATE, raptor_walk_anim)
+                self.set_random_patrol_direction()  # Set a new patrol direction when resuming patrol
+
+        elif self.current_state == AgentState.CHASE_STATE:
+            distance_to_target = (target - self.position).length()
+
+            # If food is too far away, return to PATROL_STATE
+            if distance_to_target > CHASE_DISTANCE:
+                self.change_state(AgentState.PATROL_STATE, raptor_walk_anim)
+                return  # Exit early to avoid chasing
+
+            self.velocity = (target - self.position).normalize() * MAX_SPEED
+            self.position += self.velocity
+            if distance_to_target < 10:
+                self.change_state(AgentState.ATK_STATE, raptor_atk_anim)
+
+        elif self.current_state == AgentState.ATK_STATE:
+            if self.frame_index >= len(self.current_anim) - 1:  # Finish attack animation
+                self.hungriness = 100
+                self.change_state(AgentState.PATROL_STATE, raptor_walk_anim)
+
+        elif self.current_state == AgentState.DEAD_STATE:
+            if self.frame_index < len(self.current_anim) - 1:
+                self.update_animation(dt)  # Continue playing death animation
+            else:
+                self.frame_index = len(raptor_dead_anim) - 1  # Set to last frame to lay down still
+
+        self.update_animation(dt)
 
         # Warp around
         if self.position.x > WIDTH:
@@ -149,57 +139,42 @@ class Agent:
         elif self.position.y < 0:
             self.position.y = HEIGHT
 
-        return True
-
-
     def draw(self, screen):
-        # Update frame index for animation
-        self.frame_index = (self.frame_index + FRAME_RATE) % len(orc_frames)
-        current_frame = orc_frames[ int(self.frame_index) ]
-
+        # Get the current frame from the animation
+        current_frame = self.current_anim[int(self.frame_index)]
+        
+        # Correct alignment by centering on the position
+        sprite_rect = current_frame.get_rect(center=(self.position.x, self.position.y))
+        
+        # Flip the sprite if it's moving left
         if self.velocity.x < 0:
             current_frame = pygame.transform.flip(current_frame, True, False)
-
-        if self.current_state == 'patrol':
-            pygame.draw.circle(screen, (0, 0, 255), self.position, 10)
-        elif self.current_state == 'chase':
-            pygame.draw.circle(screen, (225, 255, 0), self.position, 10)
-        elif self.current_state == 'attack':
-            pygame.draw.circle(screen, (225, 0, 0), self.position, 10)
-
-        screen.blit(current_frame, (int(self.position.x) - 50, int(self.position.y) - 50))
-
-
-# ------------------------------------------------------------------------------------------------
-
+        
+        # Draw the sprite centered at the position
+        screen.blit(current_frame, sprite_rect)
 
 def main():
     agents = [Agent() for _ in range(NUM_AGENTS)]
-
     clock = pygame.time.Clock()
 
     running = True
     while running:
-        time_delta = clock.tick(60) / 1000.0
+        dt = clock.tick(60) / 1000.0
         screen.fill((100, 100, 100))
-        manager.update(time_delta)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            manager.process_events(event)
 
-            target = pygame.Vector2(pygame.mouse.get_pos())
+        target = pygame.Vector2(pygame.mouse.get_pos())
 
-        agents = [fish for fish in agents if fish.update(target)]
         for agent in agents:
+            agent.update(target, dt)
             agent.draw(screen)
 
         pygame.draw.circle(screen, (255, 0, 0), (int(target.x), int(target.y)), FOOD_SIZE)
 
-        manager.draw_ui(screen)
         pygame.display.flip()
-        clock.tick(60)
 
     pygame.quit()
 
