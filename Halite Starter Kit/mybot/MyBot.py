@@ -58,7 +58,7 @@ while True:
 
         if game_map[ship.position].ship.is_full: 
             
-            #Flag everyship I spawned with Decepticon_bots
+            #Flag everyship I spawned with Decepticon_bots tag to differentiat from enemy ship
             
 
             #Bot 1: minerShips
@@ -67,7 +67,7 @@ while True:
             #try to create: state 3: while stay still or moving if near another ship by 2 cell radius move away in random position for 3 tiles then go back to state 1
             #try to create: state 4: if ship is full move to shipyard(x,y) if reached shipyard dropoff hallite
 
-            #Bot 2: attackShip spwan if there are no attackShip role is limit to 1 ship (only supportShip can spawn the attackShip)
+            #Bot 2: attackShip spawn if there are no attackShip role is limit to 1 ship (only supportShip can spawn the attackShip)
             #try to create: state 1: #Seek enemyShip(not mine)(move to the direction of their base) once found enemy move my ship to collide
             #try to create: state 2: #Once collide store the last position of the cell
             #try to create: state 3: #Assign position for supportShip to retieve the halite, and immediately go back home to dropoff
