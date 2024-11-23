@@ -1,6 +1,5 @@
 from .entity import Shipyard, Ship, Dropoff
 from .positionals import Position
-from .positionals import Position
 from .common import read_input
 
 class Player:

@@ -1,89 +1,171 @@
 #!/usr/bin/env python3
 # Python 3.6
 
-# Import the Halite SDK, which will let you interact with the game.
+import math
 import hlt
-
-# This library contains constant values.
 from hlt import constants
-
-# This library contains direction metadata to better interface with the game.
-from hlt.positionals import Direction
-
-# This library allows you to generate random numbers.
+from hlt.positionals import Direction, Position
 import random
-
-# Logging allows you to save messages for yourself. This is required because the regular STDOUT
-#   (print statements) are reserved for the engine-bot communication.
 import logging
+from hlt.entity import Ship
+
+# Define the maximum number of ships that can be spawned
+MAX_SHIPS = 7
+
+global canSpawned
 
 """ <<<Game Begin>>> """
-
-# This game object contains the initial game state.
+canSpawned = False
 game = hlt.Game()
-# At this point "game" variable is populated with initial map data.
-# This is a good place to do computationally expensive start-up pre-processing.
-# As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("Decepticons")
+game.ready("Decepticon")
 
-# Now that your bot is initialized, save a message to yourself in the log file with some important information.
-#   Here, you log here your id, which you can always fetch from the game object by using my_id.
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 """ <<<Game Loop>>> """
 
+stages = {'go_to_collect', 'collecting', 'back_home'}
+ship_stage = {}
+ship_canBack = {}  # Track canBack for each ship individually
+
+# A helper function to check for collisions
+def is_position_occupied(pos):
+    for other_ship in game.me.get_ships():
+        if other_ship.position == pos:
+            return True
+    return False
+
+def check_move_conflicts(command_queue):
+    move_targets = set()
+    new_command_queue = []
+
+    for command in command_queue:
+        # Check if the command is a Ship move command
+        if isinstance(command, str) and command.startswith("MOVE"):
+            parts = command.split()
+            if len(parts) > 2:
+                target_pos = parts[2]  # Get the direction (or position) part
+                if target_pos in move_targets:
+                    continue
+                move_targets.add(target_pos)
+        new_command_queue.append(command)
+
+    return new_command_queue
+
 while True:
-    # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
-    #   running update_frame().
     game.update_frame()
-    # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
 
-    # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
-    #   end of the turn.
     command_queue = []
 
     for ship in me.get_ships():
-        # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
-        #   Else, collect halite.
-        
-        
-        if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
-            command_queue.append(
-                ship.move(
-                    random.choice([ Direction.North, Direction.South, Direction.East, Direction.West ])))
-        else:
-            command_queue.append(ship.stay_still())
+        if ship.id not in ship_stage:
+            ship_stage[ship.id] = 'go_to_collect'
+            ship_canBack[ship.id] = True  # Initialize canBack for each ship
 
-        if game_map[ship.position].ship.is_full: 
+        if ship_stage[ship.id] == 'go_to_collect':
+            # Look around to collect halite data
+            shipSpawnedAfterDrop()
+            halite_values = {}
+            direction_values = {}
+            for direction in [Direction.North, Direction.South, Direction.East, Direction.West]:
+                pos = ship.position.directional_offset(direction)
+                halite_values[pos] = game_map[pos].halite_amount
+                direction_values[pos] = direction
+
+            # Move toward the place with the highest halite
+            if len(halite_values) > 0:
+                highest_halite_pos = max(halite_values, key=halite_values.get)  # Get position with max halite
+                direction = direction_values[highest_halite_pos]  # Get direction to the highest halite
+                
+                # Check if the target position is occupied and choose another direction
+                target_pos = ship.position.directional_offset(direction)
+                if is_position_occupied(target_pos):
+                    logging.info(f"Ship {ship.id} found collision at {target_pos}. Choosing another direction.")
+                    # Try another direction if the current one is blocked
+                    available_directions = [Direction.North, Direction.South, Direction.East, Direction.West]
+                    random.shuffle(available_directions)  # Shuffle to choose a random direction
+                    for alt_direction in available_directions: 
+                        alt_target_pos = ship.position.directional_offset(alt_direction)
+                        if not is_position_occupied(alt_target_pos):
+                            direction = alt_direction
+                            break
+
+                command_queue.append(ship.move(direction))
+                # Transition to the 'collecting' state after moving
+                ship_stage[ship.id] = 'collecting'
+                logging.info(f"Ship {ship.id} moved to collect halite and is now in 'collecting' state")
             
-            #Flag everyship I spawned with Decepticon_bots tag to differentiat from enemy ship
+            else:
+                command_queue.append(ship.stay_still())
+
+        elif ship_stage[ship.id] == 'collecting':
+            command_queue.append(ship.stay_still())  # Stay still while collecting halite
+
+            # Check if ship is full (max halite reached)
+            if ship.halite_amount >= constants.MAX_HALITE and ship_canBack[ship.id] == True:
+                ship_stage[ship.id] = 'back_home'
+                ship_canBack[ship.id] = False  # Prevent other ships from returning until this one finishes
+                logging.info(f"Ship {ship.id} changed to back_home state")
             
+            # Switch to 'go_to_collect' state if halite on current tile is low
+            elif game_map[ship.position].halite_amount <= 10:
+                ship_stage[ship.id] = 'go_to_collect'
+                logging.info(f"Ship {ship.id} changed to go_to_collect state")
 
-            #Bot 1: minerShips
-            #try to create: state 1: if ship is not full go in one random direction for 5 tile while moving checking for high halite location 
-            #try to create: state 2: if found high hallite then go to this state to stay still if not go back to state 1
-            #try to create: state 3: while stay still or moving if near another ship by 2 cell radius move away in random position for 3 tiles then go back to state 1
-            #try to create: state 4: if ship is full move to shipyard(x,y) if reached shipyard dropoff hallite
+        elif ship_stage[ship.id] == 'back_home':
+            # Move back to the shipyard to drop off halite
+            d = Position(0, 0)
+            d.x = me.shipyard.position.x - ship.position.x
+            d.y = me.shipyard.position.y - ship.position.y
 
-            #Bot 2: attackShip spawn if there are no attackShip role is limit to 1 ship (only supportShip can spawn the attackShip)
-            #try to create: state 1: #Seek enemyShip(not mine)(move to the direction of their base) once found enemy move my ship to collide
-            #try to create: state 2: #Once collide store the last position of the cell
-            #try to create: state 3: #Assign position for supportShip to retieve the halite, and immediately go back home to dropoff
-            #try to create: state 4: once drop off spawn a new attackship immediately
+            cmd = Direction.Still
+            if d.x > 0:
+                cmd = Direction.East
+            elif d.x < 0:
+                cmd = Direction.West
+            if d.y > 0:
+                cmd = Direction.South
+            elif d.y < 0:
+                cmd = Direction.North
 
-            #Bot 3: supportShip - always spawn if there are no supportShip - role is limit to 1(stay close to an attack ship to get halite once the enemy is killed by the attackship)
-            #try to create: state 1: stay close to an attack ship by 1 cell radius while avoid the enemy ship by 2 cell
-            #try to create: state 2: runaway if enemyShip is within 2 cell radius
-            #try to create: state 3: Once attackship is colide move to the halite and stay still(retieve it)
-            #try to create: state 4: Once retieved go back to base to drop off halite and spawn new attackship
+            # Check for collision before moving to the shipyard
+            target_pos = ship.position.directional_offset(cmd)
+            if is_position_occupied(target_pos):
+                # If the shipyard is blocked, try to avoid the collision
+                available_directions = [Direction.North, Direction.South, Direction.East, Direction.West]
+                random.shuffle(available_directions)  # Shuffle to choose a random direction
+                for alt_direction in available_directions:
+                    alt_target_pos = ship.position.directional_offset(alt_direction)
+                    if not is_position_occupied(alt_target_pos):
+                        cmd = alt_direction
+                        break
 
-    # If the game is in the first 200 turns and you have enough halite, spawn a ship.
-    # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
-        command_queue.append(me.shipyard.spawn())
+            command_queue.append(ship.move(cmd))
 
-    # Send your moves back to the game environment, ending this turn.
+            # If at the shipyard, go back to collecting
+            if ship.position == me.shipyard.position:
+                canSpawned = True
+                ship_canBack[ship.id] = True  # Allow other ships to go back now
+                ship_stage[ship.id] = 'go_to_collect'
+                logging.info(f"Ship {ship.id} reached the shipyard and changed to go_to_collect state")
+
+    # Ship spawning logic (only spawn if the shipyard is not occupied and max ships limit is not reached)
+    if game.turn_number <= 1 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+        # Only spawn if less than MAX_SHIPS are already present
+        if len(me.get_ships()) < MAX_SHIPS:
+            command_queue.append(me.shipyard.spawn())
+
+    def shipSpawnedAfterDrop():
+        global canSpawned
+        if game.turn_number >= 2 and me.halite_amount >= constants.SHIP_COST and canSpawned == True and not game_map[me.shipyard].is_occupied:
+            # Only spawn if less than MAX_SHIPS are already present
+            if len(me.get_ships()) < MAX_SHIPS:
+                command_queue.append(me.shipyard.spawn())
+                canSpawned = False
+
+    # Resolve move conflicts
+    command_queue = check_move_conflicts(command_queue)
+
+    # End the turn with all the commands
     game.end_turn(command_queue)
-
