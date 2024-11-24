@@ -10,7 +10,7 @@ import logging
 from hlt.entity import Ship
 
 # Define the maximum number of ships that can be spawned
-MAX_SHIPS = 7
+MAX_SHIPS = 5
 
 global canSpawned
 
